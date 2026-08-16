@@ -123,6 +123,7 @@ body.present .hint.show{ opacity:1 }
     <span class="lab">صفحة</span>
     <button id="up" title="ارفع صفحة PDF أو صورة تشرح عليها">ارفع</button>
     <button id="rmbg" title="شيل الصفحة المرفوعة" disabled>شيل</button>
+    <button id="split" title="قسّم الورقة نصين" aria-pressed="false">تقسيم</button>
     <input id="file" type="file" accept="application/pdf,image/*" style="display:none">
   </div>
 
@@ -167,7 +168,7 @@ body.present .hint.show{ opacity:1 }
     <button id="png" title="تنزيل صورة">تنزيل</button>
     <button id="pres" title="عرض (F)">عرض</button>
     <span class="save" id="save"></span>
-    <span class="ver">v3</span>
+    <span class="ver">v4</span>
   </div>
 </div>
 
@@ -216,7 +217,7 @@ function zoomAt(nk, cx, cy){
 function zsync(){ const z=document.getElementById('znum');
   if(z) z.textContent = Math.round(view.k*100)+'%'; }
 
-function newPage(){ return { board:'blank', bg:null, items:[], undone:[] }; }
+function newPage(){ return { board:'blank', bg:null, split:false, items:[], undone:[] }; }
 function P(){ return pages[cur]; }
 
 /* ---------- fit ---------- */
@@ -252,24 +253,25 @@ const boards = {
     for(let x=M.l; x<=M.r; x+=60) line(x,M.t,x,M.b,'#EFE9DC',1);
     for(let y=M.t; y<=M.b; y+=60) line(M.l,y,M.r,y,'#EFE9DC',1);
   },
-  t2(){ const w=810,gap=120,y=M.t+130,hh=760;
+  t2(){ const av=M.r-M.l, gap=Math.min(120,av*0.09), w=(av-gap)/2, y=M.t+130, hh=760;
         tacc(M.l,y,w,hh); tacc(M.l+w+gap,y,w,hh); },
-  t4(){ const w=780,gap=180,hh=350;
+  t4(){ const av=M.r-M.l, gap=Math.min(180,av*0.12), w=(av-gap)/2, hh=350;
         const xs=[M.l,M.l+w+gap], ys=[M.t+96,M.t+560];
         for(const yy of ys) for(const xx of xs) tacc(xx,yy,w,hh); },
   journal(){
     const x=M.l, y=M.t+40, w=M.r-M.l, rows=13, rh=64;
-    const cols=[0,180,w-560,w-460,w-230,w];
+    const cols=[0,.103,.678,.736,.868,1].map(f=>f*w);
+    const fs=Math.max(14, Math.min(24, 24*w/1740));
     g.fillStyle=C.thead; g.fillRect(x,y,w,54);
     line(x,y,x+w,y,C.line,2); line(x,y+54,x+w,y+54,C.line,2);
     const heads=['Date','Account Titles and Explanation','Ref.','Debit','Credit'];
-    for(let i=0;i<5;i++) label(heads[i], x+(cols[i]+cols[i+1])/2, y+36, 24, C.pri);
+    for(let i=0;i<5;i++) label(heads[i], x+(cols[i]+cols[i+1])/2, y+36, fs, C.pri);
     for(let r=1;r<=rows;r++) line(x,y+54+r*rh,x+w,y+54+r*rh,C.hair,1.2);
     for(const c of cols) line(x+c,y,x+c,y+54+rows*rh,C.line,1.6);
     line(x,y+54+rows*rh,x+w,y+54+rows*rh,C.line,2);
   },
   eq(){
-    const y=M.t+110, h=740, gap=64;
+    const y=M.t+110, h=740, gap=Math.min(64,(M.r-M.l)*0.037);
     const bw=(M.r-M.l-2*gap)/3;
     const names=['Assets','Liabilities','Equity'];
     const signs=['=','+'];
@@ -278,29 +280,32 @@ const boards = {
       g.fillStyle=C.thead; g.fillRect(x,y,bw,52);
       g.strokeStyle=C.line; g.lineWidth=1.6; g.strokeRect(x,y,bw,h);
       line(x,y+52,x+bw,y+52,C.line,1.6);
-      label(names[i], x+bw/2, y+36, 26, C.pri);
+      label(names[i], x+bw/2, y+36, Math.max(15, Math.min(26, 26*bw/540)), C.pri);
       if(i<2) label(signs[i], x+bw+gap/2, y+h/2+16, 46, C.acci);
     }
   },
   tb(){
-    const x=M.l+200, w=M.r-M.l-400, y=M.t+90, rows=12, rh=64;
-    const cols=[0,w-460,w-230,w];
+    const pad=Math.min(200,(M.r-M.l)*0.12);
+    const x=M.l+pad, w=M.r-M.l-2*pad, y=M.t+90, rows=12, rh=64;
+    const cols=[0,.657,.828,1].map(f=>f*w);
+    const fs=Math.max(14, Math.min(24, 24*w/1340));
     g.fillStyle=C.thead; g.fillRect(x,y,w,54);
     line(x,y,x+w,y,C.line,2); line(x,y+54,x+w,y+54,C.line,2);
     const heads=['Account','Debit','Credit'];
-    for(let i=0;i<3;i++) label(heads[i], x+(cols[i]+cols[i+1])/2, y+36, 24, C.pri);
+    for(let i=0;i<3;i++) label(heads[i], x+(cols[i]+cols[i+1])/2, y+36, fs, C.pri);
     for(let r=1;r<=rows;r++) line(x,y+54+r*rh,x+w,y+54+r*rh,C.hair,1.2);
     for(const c of cols) line(x+c,y,x+c,y+54+rows*rh,C.line,1.6);
     const yb=y+54+rows*rh;
     line(x,yb,x+w,yb,C.line,2); line(x,yb+5,x+w,yb+5,C.line,2);   // إجمالي مزدوج
-    label('Trial Balance', (M.l+M.r)/2, y-32, 28, C.mute);
+    label('Trial Balance', (M.l+M.r)/2, y-32, Math.max(16,fs*1.15), C.mute);
   }
 };
 function tacc(x,y,w,h){
   line(x,y,x+w,y,C.line,2.2);                // اسم الحساب فوق هذا الخط
   line(x+w/2,y,x+w/2,y+h,C.line,2.2);
-  label('Dr.', x+w/4, y+34, 21, C.mute);
-  label('Cr.', x+3*w/4, y+34, 21, C.mute);
+  const fs=Math.max(14, Math.min(21, 21*w/810));
+  label('Dr.', x+w/4, y+34, fs, C.mute);
+  label('Cr.', x+3*w/4, y+34, fs, C.mute);
 }
 
 /* ---------- render ---------- */
@@ -313,21 +318,32 @@ function draw(){
   g.setTransform(s,0,0,s,0,0);
   g.transform(view.k,0,0,view.k, view.x, view.y);
   g.lineJoin='round'; g.lineCap='round';
-  bgimg();
-  (boards[P().board] || boards.blank)();
+  paper();
   line(M.rule, 52, M.rule, H-52, C.acc, 1.4);        // خط الهامش — البصمة
   wordmark();
   for(const it of P().items) paint(it);
 }
 const imgCache=new Map();
-function bgimg(){
+function bgimg(box){
   const src=P().bg; if(!src) return;
   let im=imgCache.get(src);
   if(!im){ im=new Image(); im.onload=()=>draw(); im.src=src; imgCache.set(src,im); return; }
   if(!im.complete || !im.naturalWidth) return;
-  const k=Math.min((W-2*M.rule-40)/im.naturalWidth, (H-80)/im.naturalHeight);
+  const b=box || {x:M.rule+20, y:40, w:W-M.rule-60, h:H-80};
+  const k=Math.min(b.w/im.naturalWidth, b.h/im.naturalHeight);
   const w=im.naturalWidth*k, hh=im.naturalHeight*k;
-  g.drawImage(im, (W-w)/2 + M.rule/2, (H-hh)/2, w, hh);
+  g.drawImage(im, b.x+(b.w-w)/2, b.y+(b.h-hh)/2, w, hh);
+}
+
+/* ---------- ورقة نصين ---------- */
+const MID = 968;
+function withM(l,r,fn){ const ol=M.l, orr=M.r; M.l=l; M.r=r; try{ fn(); } finally{ M.l=ol; M.r=orr; } }
+function paper(){
+  const bd = boards[P().board] || boards.blank;
+  if(!P().split){ bgimg(); bd(); return; }
+  bgimg({ x:M.rule+24, y:48, w:MID-M.rule-72, h:H-96 });     // المصدر يسار
+  withM(MID+40, W-64, bd);                                    // مساحة الحل يمين
+  line(MID, 96, MID, H-96, C.hair, 1.6);                      // الفاصل
 }
 function wordmark(){
   const w=124, k=w/2019, x=M.r-w, y=100;
@@ -529,6 +545,7 @@ function sync(){
   document.getElementById('prev').disabled = cur===0;
   document.getElementById('next').disabled = cur===pages.length-1;
   rmbg.disabled = !P().bg;
+  splitB.setAttribute('aria-pressed', !!P().split);
   undoB.disabled = !P().items.length;
   redoB.disabled = !P().undone.length;
 }
@@ -540,8 +557,7 @@ document.getElementById('png').onclick=()=>{
   g=og; g.setTransform(2,0,0,2,0,0);
   g.fillStyle='#fff'; g.fillRect(0,0,W,H);
   g.lineJoin='round'; g.lineCap='round';
-  bgimg();
-  (boards[P().board]||boards.blank)();
+  paper();
   line(M.rule,52,M.rule,H-52,C.acc,1.4);
   wordmark();
   for(const it of P().items) paint(it);
@@ -559,6 +575,8 @@ document.getElementById('png').onclick=()=>{
 const fileIn=document.getElementById('file'), rmbg=document.getElementById('rmbg');
 document.getElementById('up').onclick=()=>fileIn.click();
 rmbg.onclick=()=>{ P().bg=null; draw(); sync(); };
+const splitB=document.getElementById('split');
+splitB.onclick=()=>{ P().split=!P().split; draw(); sync(); };
 
 function shrink(canvas){
   const maxW=1700, k=Math.min(1, maxW/canvas.width);
@@ -674,7 +692,7 @@ function flag(t){ saveTag.textContent=t; saveTag.classList.add('on');
 const r1=n=>Math.round(n*10)/10;
 function pack(){
   return JSON.stringify({ v:1, cur, pages: pages.map(p=>({
-    b:p.board, g:p.bg||null,
+    b:p.board, g:p.bg||null, s2:p.split?1:0,
     i:p.items.map(it=> it.k==='t'
         ? {k:'t',t:it.txt,x:r1(it.x),y:r1(it.y),c:it.c,s:it.s,r:it.rtl?1:0}
         : {c:it.c,w:it.w,p:it.p.map(q=>[r1(q[0]),r1(q[1])])} )
@@ -682,7 +700,7 @@ function pack(){
 }
 function unpack(s){
   const d=JSON.parse(s); if(!d||!d.pages||!d.pages.length) return false;
-  pages=d.pages.map(p=>({ board:p.b||'blank', bg:p.g||null, undone:[],
+  pages=d.pages.map(p=>({ board:p.b||'blank', bg:p.g||null, split:!!p.s2, undone:[],
     items:(p.i||[]).map(it=> it.k==='t'
       ? {k:'t',txt:it.t,x:it.x,y:it.y,c:it.c,s:it.s,rtl:!!it.r}
       : {c:it.c,w:it.w,p:it.p}) }));
